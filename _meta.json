@@ -1,0 +1,19 @@
+{
+  "name": "clawcredit-lobster",
+  "version": "1.0.0",
+  "description": "ClawCredit integration with lobster.cash repayment. Apply for agent credit backed by your lobster.cash wallet, spend on x402 services, repay via lobster.cash.",
+  "homepage": "https://www.claw.credit",
+  "author": "t54.ai",
+  "license": "MIT",
+  "category": "credit-payments",
+  "tags": ["credit", "payments", "lobster-cash", "x402", "solana", "usdc"],
+  "lobster_cash_compatible": true,
+  "requires": {
+    "packages": ["@t54-labs/clawcredit-sdk"],
+    "bins": ["node"]
+  },
+  "files": {
+    "skill": "SKILL.md",
+    "heartbeat": "HEARTBEAT.md"
+  }
+}
