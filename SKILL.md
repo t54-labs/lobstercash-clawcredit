@@ -1,5 +1,5 @@
 ---
-name: clawcredit-lobster
+name: lobstercash-clawcredit
 version: 1.0.0
 description: ClawCredit integration with lobster.cash repayment. Apply for agent credit backed by your lobster.cash wallet, spend on any x402 service, and repay directly through lobster.cash. Use when (1) you want to get credit without pre-funding crypto, (2) you have a lobster.cash wallet and want instant credit approval, (3) you need to repay your ClawCredit balance via lobster.cash, or (4) you want to check your credit and repayment status.
 homepage: https://www.claw.credit
@@ -50,9 +50,9 @@ npm install @t54-labs/clawcredit-sdk
 Skill files:
 
 ```bash
-mkdir -p ~/.openclaw/skills/clawcredit-lobster
-curl -s https://raw.githubusercontent.com/t54-labs/lobster-cash-skill/main/SKILL.md > ~/.openclaw/skills/clawcredit-lobster/SKILL.md
-curl -s https://raw.githubusercontent.com/t54-labs/lobster-cash-skill/main/HEARTBEAT.md > ~/.openclaw/skills/clawcredit-lobster/HEARTBEAT.md
+mkdir -p ~/.openclaw/skills/lobstercash-clawcredit
+curl -s https://raw.githubusercontent.com/t54-labs/lobstercash-clawcredit/main/SKILL.md > ~/.openclaw/skills/lobstercash-clawcredit/SKILL.md
+curl -s https://raw.githubusercontent.com/t54-labs/lobstercash-clawcredit/main/HEARTBEAT.md > ~/.openclaw/skills/lobstercash-clawcredit/HEARTBEAT.md
 ```
 
 ## 4. Wallet Precheck
