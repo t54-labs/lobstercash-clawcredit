@@ -68,7 +68,7 @@ Transaction execution and final status are handled by lobster.cash. This skill d
 
 ## 5. Registration with lobster.cash Wallet Proof
 
-When registering with ClawCredit, agents with a lobster.cash wallet can send a micro-transfer as proof of wallet ownership. This proof accelerates credit approval.
+When registering with ClawCredit, an agent with a lobster.cash wallet can prove it controls that wallet by sending one small USDC transfer of an amount ClawCredit issues to it. This proof accelerates credit approval.
 
 ### Step 1: Privacy Consent
 
@@ -78,51 +78,59 @@ Before calling `register`, tell the user: "To evaluate your credit, ClawCredit n
 
 Ask: "Do you consent to the ClawCredit Privacy Policy?" Only proceed if the user explicitly agrees.
 
-### Step 2: Send Wallet Proof
+### Step 2: Register and Get a Proof Challenge
 
-Use the lobster.cash wallet to send a micro-transfer ($0.01 USDC) to the ClawCredit verification address as proof of wallet ownership. This proves the agent controls a valid lobster.cash account and automatically grants a **$5 credit line**.
-
-**ClawCredit verification address (Solana):** `AsEDd1vqP4AT4jnycoum22Z1cdKGKuwz3aWevUDbkmxE`
-
-### Step 3: Register with Proof
+Use `@t54-labs/clawcredit-sdk` 0.6.9 or later. Earlier versions send the old fixed-amount proof, which no longer verifies.
 
 ```javascript
 const { ClawCredit } = require('@t54-labs/clawcredit-sdk');
 
 const credit = new ClawCredit({ agentName: "MyAgent" });
 
-// proofTxHash is the Solana tx signature from the micro-transfer
 const result = await credit.register({
   inviteCode: "YOUR_INVITE_CODE",
   runtimeEnv: "node-v22",
-  lobsterWallet: {
-    walletAddress: "LOBSTER_WALLET_SOLANA_ADDRESS",
-    proofTxHash: "MICRO_TRANSFER_TX_SIGNATURE"
-  }
+  lobsterWallet: true // also request a lobster.cash proof challenge
 });
 
-if (result.lobster_wallet_verified) {
-  console.log("lobster.cash wallet verified!");
-  console.log("Credit granted:", result.lobster_wallet_credit_granted);
-  console.log("Credit limit:", result.credit_limit);
-}
+// register() asks for the challenge on a best-effort basis; ask again if it is missing.
+const challenge = result.lobster_wallet_challenge || await credit.getLobsterWalletChallenge();
+console.log(challenge.amount, challenge.recipient, challenge.expires_at);
 ```
 
-If the wallet proof is valid, credit is issued immediately — no pre-qualification wait.
+The challenge holds a unique USDC `amount` with up to 6 decimals, the Solana `recipient` address and `expires_at` (30 minutes after it was issued, by default). Asking again before it expires returns the same challenge.
 
-### Step 3 (Alternative): Link Wallet After Registration
+### Step 3: Send Exactly the Challenge Amount
 
-If the agent registered without a lobster.cash wallet and adds one later:
+From the lobster.cash wallet, send exactly `challenge.amount` USDC on Solana to `challenge.recipient` before `challenge.expires_at`, for example:
+
+```bash
+lobstercash crypto send --to <challenge.recipient> --amount <challenge.amount> --token usdc
+```
+
+Do not round the amount. Any other amount, a transfer made before the challenge was issued, or a transfer after it expired does not verify.
+
+### Step 4: Verify
 
 ```javascript
-const result = await credit.verifyLobsterWallet({
-  walletAddress: "LOBSTER_WALLET_SOLANA_ADDRESS",
-  proofTxHash: "MICRO_TRANSFER_TX_SIGNATURE"
-});
+// proofTxHash is the Solana transaction signature of the challenge-amount transfer
+const verified = await credit.verifyLobsterWallet({ proofTxHash: "PROOF_TRANSFER_TX_SIGNATURE" });
 
-console.log("Status:", result.status);
-console.log("Credit granted:", result.credit_granted);
+console.log("Status:", verified.status);                  // "verified"
+console.log("Credit granted:", verified.credit_granted);  // null when an existing line is unchanged
 ```
+
+If the transfer matches, the wallet that sent it is linked to the agent and a credit line is granted immediately, with no pre-qualification wait. `walletAddress` is optional; if you pass it, it must be the transfer's sender.
+
+### Linking a Wallet After Registration
+
+An agent that registered without `lobsterWallet` follows the same steps: call `credit.getLobsterWalletChallenge()`, send exactly its amount (Step 3), then call `credit.verifyLobsterWallet({ proofTxHash })` (Step 4).
+
+### When Verification Does Not Go Through
+
+- **429 or 503 when asking for a challenge:** the credit grant budget is used up for now. Do not send a proof transfer; ask for a challenge again after the `Retry-After` time.
+- **429 or 503 when verifying:** the budget ran out after you sent the transfer. The proof was not used: call `verifyLobsterWallet` again with the same `proofTxHash` before the challenge's verify window closes, or contact support.
+- **`status: "already_verified"`:** the agent's wallet is already linked; nothing more to do.
 
 ## 6. Making Payments
 
