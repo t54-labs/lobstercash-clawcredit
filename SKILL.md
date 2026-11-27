@@ -95,10 +95,20 @@ const result = await credit.register({
 
 // register() asks for the challenge on a best-effort basis; ask again if it is missing.
 const challenge = result.lobster_wallet_challenge || await credit.getLobsterWalletChallenge();
-console.log(challenge.amount, challenge.recipient, challenge.expires_at);
+
+if (challenge.status === "already_verified") {
+  // The wallet is already linked. Stop here and send nothing.
+} else if (challenge.status !== "challenge_issued") {
+  // No payable challenge. Send nothing; see "When Verification Does Not Go Through".
+} else {
+  // Keep this whole response: amount, recipient and expires_at belong together.
+  console.log(challenge.amount, challenge.recipient, challenge.expires_at);
+}
 ```
 
-The challenge holds a unique USDC `amount` with up to 6 decimals, the Solana `recipient` address and `expires_at` (30 minutes after it was issued, by default). Asking again before it expires returns the same challenge.
+Send a transfer only for a response whose `status` is `"challenge_issued"`, and take `amount`, `recipient` and `expires_at` from that same response. An `already_verified` response has no amount or address: the wallet is already linked, so stop.
+
+The challenge holds a unique USDC `amount` with up to 6 decimals, the Solana `recipient` address and `expires_at` (30 minutes after it was issued, by default). Asking again returns the same challenge only while at least 10 minutes are left; closer to expiry it returns a new challenge with a different amount. A new challenge does not extend the deadline of a transfer you already sent.
 
 ### Step 3: Send Exactly the Challenge Amount
 
@@ -108,7 +118,7 @@ From the lobster.cash wallet, send exactly `challenge.amount` USDC on Solana to 
 lobstercash crypto send --to <challenge.recipient> --amount <challenge.amount> --token usdc
 ```
 
-Do not round the amount. Any other amount, a transfer made before the challenge was issued, or a transfer after it expired does not verify.
+Do not round the amount. Any other amount, a transfer made before the challenge was issued, or a transfer after it expired does not verify. Once you have sent it, keep that challenge and the transfer's signature: verify with them, and do not ask for a new challenge to replace a paid one.
 
 ### Step 4: Verify
 
@@ -128,9 +138,13 @@ An agent that registered without `lobsterWallet` follows the same steps: call `c
 
 ### When Verification Does Not Go Through
 
-- **429 or 503 when asking for a challenge:** the credit grant budget is used up for now. Do not send a proof transfer; ask for a challenge again after the `Retry-After` time.
-- **429 or 503 when verifying:** the budget ran out after you sent the transfer. The proof was not used: call `verifyLobsterWallet` again with the same `proofTxHash` before the challenge's verify window closes, or contact support.
+The SDK reports a refused call as an `Error` whose message carries the service's explanation; it does not expose the HTTP status or a `Retry-After` header. Act on the message:
+
+- **You have no `challenge_issued` response** (the call failed, or the message says the grant budget is used up, verification is disabled, or there are too many requests): do not send a transfer. Try again later, for example in an hour, and contact support if it keeps failing.
+- **You already sent the transfer and `verifyLobsterWallet` fails** with a message that the proof was not consumed (for example, the budget ran out after you paid): call `verifyLobsterWallet` again with the same `proofTxHash`, and only for that challenge, until 15 minutes after its `expires_at` (by default). Do not send a second transfer. After that window, contact support with the signature.
 - **`status: "already_verified"`:** the agent's wallet is already linked; nothing more to do.
+
+If you call the HTTP API directly rather than through the SDK, honour a `Retry-After` header when the response has one.
 
 ## 6. Making Payments
 
